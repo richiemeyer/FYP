@@ -1,0 +1,529 @@
+{% load leaflet_tags %}{% load static %}{% load i18n %}{% load crispy_forms_tags %}{% load crispy_forms_filters %}{% load pwa %}
+<!DOCTYPE html>
+<html>
+<head>
+
+    {% progressive_web_app_meta %}
+
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"
+            integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+            crossorigin="anonymous"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+    <!-- CSS only -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"
+          crossorigin="anonymous">
+
+    <!-- JS, Popper.js, and jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+            integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+            crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+            integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV"
+            crossorigin="anonymous"></script>
+    <link rel="stylesheet" type="text/css" href="{% static 'world/main.css' %}">
+
+    {% if title %}
+        <title>WebMap {{ title }}</title>
+    {% else %}
+        <title>WebMap</title>
+    {% endif %}
+</head>
+<body>
+<header class="site-header">
+    <nav class="navbar navbar-expand-md navbar-dark bg-steel fixed-top">
+        <div class="container">
+            <a class="navbar-brand mr-4" href="{% url 'world-home' %}">App</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarToggle"
+                    aria-controls="navbarToggle" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarToggle">
+                <div class="navbar-nav mr-auto">
+                    <a class="nav-item nav-link" href="{% url 'world-home' %}">Home</a>
+                    <a class="nav-item nav-link" href="{% url 'world-about' %}">About</a>
+                </div>
+                <!-- Navbar Right Side -->
+                <div class="navbar-nav">
+                        <a class="nav-item nav-link" href="{% url 'profile' %}">Profile</a>
+
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>
+<main role="main" class="container">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+    {% load leaflet_tags %}
+    {% load static %}
+    {% load i18n %}
+    {% load crispy_forms_tags %}
+    {% load crispy_forms_filters %}
+    <head>
+        {% leaflet_js %}
+        {% leaflet_css %}
+        {% block head_title %}{% endblock %}
+        {% block extra_header %}
+
+        {% endblock %}
+
+    </head>
+    <body>
+    {% block body_content %}
+
+{#        <div id="divDistance">#}
+{#            <p>#}
+{#                Distance:<br/>#}
+{#                <span id="distance">0</span> km#}
+{#            </p>#}
+{#        </div>#}
+
+        <button id="darkmode" value="Dark" onclick="darkMode()">Dark</button>
+
+        <div id="divSpeedL">
+            <div class="SpeedLimitContainer">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Ireland_road_sign_RUS_021.svg/480px-Ireland_road_sign_RUS_021.svg.png"
+                     alt="Speed Limit" style="width:38%;">
+                <div class="centered" style="margin-top: 0.6vh"><span id="speedlimit">0</span>
+                    <p id="kmh">km/h</p></div>
+
+            </div>
+        </div>
+        <div id="divSpeed">
+            <p>
+                <span id="speed">0</span>
+            </p>
+        </div>
+        <div id="divSpeedKmh">
+            <p>
+                <span>km/h</span>
+            </p>
+        </div>
+
+    {% endblock %}
+    </body>
+
+        <div class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-autohide="false">
+            <div class="toast-header">
+                <strong class="mr-auto">Advanced Web Mapping</strong>
+                <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
+        <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+        <script src="https://unpkg.com/osmtogeojson@2.2.12/osmtogeojson.js"></script>
+
+        <script>
+            $("#body_div").css({"top": $(".site-header").height() + 10, "position": "absolute"});
+            $(".toast").css({
+                "top": ($(document).height() / 5),
+                "left": ($(document).width() / 5),
+                "position": "fixed",
+                "z-index": 2000
+            });
+
+        </script>
+        <script>
+            let HOST = location.protocol + "//" + location.host;
+            let locationMarker;
+            let circle;
+            let followMe;
+            let speed;
+            let globalLat;
+            let globalLng;
+            let overpassCallTime;
+            let speedLimit;
+            let roadName;
+            let trail;
+            let journeyTrail;
+
+            //Register sw
+            //if ('serviceWorker' in navigator) {
+             //   window.addEventListener('load', function () {
+            //        navigator.serviceWorker.register('/sw.js');
+             //       console.log("Custom Service Worker Registered");
+             //   });
+           // }
+
+            window.addEventListener('online', function (e) {
+                console.log('User Online');
+                // Check if the Journey has been stored in localStorage
+                if ("Journey" in localStorage) {
+                    var journeyBackup = localStorage.getItem('Journey');
+                    update_db(journeyBackup);
+                    console.log("Journey is being sent to DB");
+                    // Removing the journey from local storage once it is sent to the db
+                    localStorage.removeItem('Journey');
+                }
+            });
+
+            // Background sync
+            //navigator.serviceWorker.ready.then(function (swRegistration) {
+            //  console.log('ServiceWorker Backup Sync registration successful with scope: ', swRegistration.scope);
+            // return swRegistration.sync.register('myFirstSync');
+            //});
+
+            // Function that will draw the users trail as a line string
+            function startJourneyTrail(lastPos, newPos) {
+                let myLatLon = L.latLng(newPos.coords.latitude, newPos.coords.longitude);
+
+                globalLat = myLatLon.lat;
+                globalLng = myLatLon.lng;
+
+            }
+
+            function update_db(data) {
+                //let locString = pos.coords.longitude + ", " + pos.coords.latitude;
+
+                $.ajax({
+                    type: "POST",
+                    url: "{% url 'updatedb' %}",
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    data: {
+                        point: data
+                    }
+                }).done(function (data, status, xhr) {
+                    console.log(data["message"])
+                    var originalMsg = $(".toast-body").html();
+                    $(".toast-body").html(originalMsg + "<br/>Updated database<br/>" + data["message"]);
+
+                }).fail(function (xhr, status, error) {
+                    console.log('hi' + error);
+                    var originalMsg = $(".toast-body").html();
+                    $(".toast-body").html(originalMsg + "<br/>" + error);
+                }).always(function () {
+                    console.log("find_loc_ed finished");
+                    $(".toast").toast('show');
+                });
+            }
+
+            function getCookie(name) {
+                var cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    var cookies = document.cookie.split(';');
+                    for (var i = 0; i < cookies.length; i++) {
+                        var cookie = jQuery.trim(cookies[i]);
+                        // Does this cookie string begin with the name we want?
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+
+
+            //-----------------------------------------------------------------------
+
+            let start = 0;
+            var watchID;
+            var startPos;
+            var lastPos;
+            var geoLoc;
+            var journey = false;
+
+            // Checking if Geolocation is supported
+            //if (navigator.geolocation) {
+            //    console.log('Geolocation is supported!');
+            //} else {
+            //    console.log('Geolocation is not supported for this Browser/OS version yet.');
+            //}
+
+            //a = new AudioContext()
+
+            //function beep(vol, freq, duration) {
+            //v = a.createOscillator()
+            //u = a.createGain()
+            //v.connect(u)
+            //v.frequency.value = freq
+            //v.type = "square"
+            //u.connect(a.destination)
+            //u.gain.value = vol * 0.01
+            //v.start(a.currentTime)
+            //v.stop(a.currentTime + duration * 0.001)
+            //}
+
+            // calculateDistance() performs a geometric algorithm to determine the distance between two points
+            function calculateDistance(lat1, lon1, lat2, lon2) {
+                var R = 6371; // km
+                var dLat = (lat2 - lat1).toRad();
+                var dLon = (lon2 - lon1).toRad();
+                var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1.toRad()) * Math.cos(lat2.toRad()) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                var d = R * c;
+                return d;
+            }
+
+            function convertTimeStamp(unix_timestamp) {
+                // Create a new JavaScript Date object based on the timestamp
+                var date = new Date(unix_timestamp);
+                return date;
+            }
+
+            function calculateSpeed(startPos, position) {
+
+                var distance = calculateDistance(startPos.coords.latitude, startPos.coords.longitude, position.coords.latitude, position.coords.longitude);
+                // milliseconds to seconds
+                var seconds = Math.abs(convertTimeStamp(position.timestamp) - convertTimeStamp(startPos.timestamp)) / 1000;
+                var minutes = seconds / 60;
+                var hours = minutes / 60;
+                speed = distance / hours;
+                return Math.round(speed);
+            }
+
+            Number.prototype.toRad = function () {
+                return this * Math.PI / 180;
+            }
+
+            window.onload = function () {
+                let geoOptions = {
+                    enableHighAccuracy: true,
+                    timeout: 3000
+                }
+                let geoSuccess = function (position) {
+                    startPos = position;
+                };
+                let geoError = function (error) {
+
+                    console.log('Error occurred. Error code: ' + error.code);
+
+                    if (error.code == 0) {
+                        alert("Unknown error occurred. Please refresh the page.")
+                    }
+                    if (error.code == 1) {
+                        alert("Location Permissions were denied. Please allow this app to access your location to enable full functionality")
+                    }
+                    if (error.code == 2) {
+                        alert("Your location is currently unavailable. Please refresh and try again")
+                    }
+                    if (error.code == 3) {
+                        alert("Location services have timed out. Please refresh and try again")
+                    }
+                };
+
+                navigator.geolocation.getCurrentPosition(geoSuccess, geoError, geoOptions);
+            };
+
+            // This will return geolocation information every time the device changes the position
+            //watchID = navigator.geolocation.watchPosition(function (position) {
+
+            function updateJourney(position) {
+
+                if (lastPos == undefined) {
+                    lastPos = position;
+                }
+
+                // Get the first position for the journey to store in the DB
+                //if(trail == "[") {
+                //    trail = trail + "{lat:" + position.coords.latitude + ", " + "lon:" + position.coords.longitude + "},"
+                //}
+                console.log(position);
+                // Update every second
+                var oldSec = Math.abs(convertTimeStamp(lastPos.timestamp)) / 1000;
+                var newSec = Math.abs(convertTimeStamp(position.timestamp)) / 1000;
+
+                if (newSec > (oldSec + 1)) {
+
+                    // Total distance
+                    var distance = Number(calculateDistance(startPos.coords.latitude, startPos.coords.longitude, position.coords.latitude, position.coords.longitude)).toFixed(2);
+                    // Distance between current and last positions
+                    var distanceThresh = Number(calculateDistance(lastPos.coords.latitude, lastPos.coords.longitude, position.coords.latitude, position.coords.longitude)).toFixed(2)
+                    // GPS Readings will only be taken in if the accuracy is less than 35m. (the user has traveled 200m without any GPS reading or 10 seconds have passed without a GPS reading - debugging)
+                    if (position.coords.accuracy < 20 || (distanceThresh > 0.2) || ((newSec - oldSec) == 10)) {
+
+                        var speed = calculateSpeed(lastPos, position);
+
+                        if (speedLimit == undefined) {
+                            speedLimit = 0;
+                        }
+
+                        // If the user is over the speed limit
+                        if ((speed > speedLimit) && (speedLimit > 0)) {
+                            document.getElementById('speed').innerHTML = speed;
+                            document.getElementById('speed').style.color = "red";
+
+
+                            // If the user is under the speed limit
+                        } else {
+                            document.getElementById('speed').innerHTML = speed;
+                            document.getElementById('speed').style.color = "green";
+
+                        }
+                        // Collecting all the necessary information that will be sent to the database
+                        // In this case, lat, lng, speed and speedLimit is being sent
+                        //trail = trail + "{\"timestamp\":" + position.timestamp + ", " + "\"lat\":" + position.coords.latitude + ", " + "\"lon\":" + position.coords.longitude + ", " + "\"speed\":" + speed + ", " + "\"speedLimit\":" + speedLimit + ", " + "\"road\":" + "\"" + roadName + "\"" + "},";
+                        trail = trail + "{\"timestamp\":" + position.timestamp + ", " + "\"lat1\":" + lastPos.coords.latitude + ", " + "\"lon1\":" + lastPos.coords.longitude + ", " + "\"lat2\":" + position.coords.latitude + ", " + "\"lon2\":" + position.coords.longitude + ", "
+                            + "\"speed\":" + speed + ", " + "\"speedLimit\":" + speedLimit + ", " + "\"road\":" + "\"" + roadName + "\"" + "},";
+
+
+                        //document.getElementById('distance').innerHTML = distance;
+                        // Send the last position and the current position to the Journey Trail function to be drawn onto the map
+                        startJourneyTrail(lastPos, position);
+                        lastPos = position;
+
+                    }
+                    console.log(position);
+                }
+
+                // Make the call to Overpass every 3 seconds to prevent too many API calls from happening
+                // This will be used to return the roads speed limit
+                if (overpassCallTime == undefined) {
+                    overpassCallTime = newSec - 3;
+                }
+                if (newSec > (overpassCallTime + 3)) {
+                    console.log(overpassCallTime);
+
+                    // This will return all geospatial data with the keyword maxspeed in it
+                    var overpassApiUrl = buildOverpassApiUrl('maxspeed')
+                    $.get(overpassApiUrl, function (osmDataAsJson) {
+                        var resultAsGeojson = osmtogeojson(osmDataAsJson);
+                        var maxspeedFound = false;
+                        var resultLayer = L.geoJson(resultAsGeojson, {
+                            onEachFeature: function (feature, layer) {
+                                var keys = Object.keys(feature.properties.tags);
+                                keys.forEach(function (key) {
+
+                                    if ((key == 'maxspeed') && (!maxspeedFound)) {
+
+                                        if (speedLimit == feature.properties.tags[key]) {
+                                            document.getElementById('speedlimit').innerHTML = feature.properties.tags[key];
+                                            maxspeedFound = true;
+                                        } else {
+                                            speedLimit = feature.properties.tags[key];
+                                            maxspeedFound = true;
+                                        }
+                                    }
+                                    // Adding the name of the road to the Database
+                                    if (key == 'ref') {
+                                        roadName = feature.properties.tags[key];
+                                    }
+                                });
+                            }
+                        })
+                        if (!maxspeedFound) {
+                            document.getElementById('speedlimit').innerHTML = "?";
+                            speedLimit = 0;
+                        }
+                    });
+
+                    overpassCallTime = newSec;
+                }
+            }
+
+            function buildOverpassApiUrl(overpassQuery) {
+                // Using the around keyword in Overpass in order to get the road that the user is currently on
+                // In this case, we are checking for roads that are within 10 meters of the user
+                var around = 'around:10,' + globalLat + ',' + globalLng
+                var nodeQuery = 'node[' + overpassQuery + '](' + around + ');';
+                var wayQuery = 'way[' + overpassQuery + '](' + around + ');';
+                var query = '?data=[out:json][timeout:15];(' + nodeQuery + wayQuery + ');out body geom;';
+                var baseUrl = 'https://overpass-api.de/api/interpreter';
+                var resultUrl = baseUrl + query;
+                return resultUrl;
+            }
+
+            function stopJourney() {
+
+                navigator.geolocation.clearWatch(watchID)
+                document.getElementById('speed').innerHTML = "0";
+                document.getElementById('speedlimit').innerHTML = "0";
+                trail = trail.replace(/(^,)|(,$)/g, "")
+                trail = trail + "]}";
+
+                if (navigator.onLine) {
+                    console.log('User Online');
+                    update_db(trail);
+                    document.getElementById("button").innerHTML = "▶";
+
+
+                } else {
+                    console.log('User Offline. Journey is being sent to local storage');
+                    localStorage.setItem('Journey', trail);
+                }
+
+                journey = false;
+                document.getElementById("button").innerHTML = "▶";
+            }
+
+            function recordJourney() {
+                geoLoc = navigator.geolocation;
+
+                trail = "{\"journeyInfo\":[";
+                watchID = geoLoc.watchPosition(updateJourney);
+                document.getElementById("button").innerHTML = "▢";
+                journey = true;
+            }
+
+            function toggleJourney() {
+                journey ? stopJourney() : recordJourney();
+            }
+
+            function toggleStyle() {
+                var element = document.getElementById("button");
+                element.classList.toggle("myButton2");
+            }
+
+            function darkMode() {
+                var element = document.body;
+                element.classList.toggle("dark-mode");
+                var element = document.getElementById("darkmode");
+                if (element.value == "Dark") {
+                    element.value = "Light";
+                    element.innerHTML = "Light"
+                } else {
+                    element.value = "Dark";
+                    element.innerHTML = "Dark"
+                }
+            }
+        </script>
+        <div class="journeyButton">
+            <button id="button" class="myButton" onclick="toggleJourney(); toggleStyle()">▶</button>
+        </div>
+</main>
+
+<!-- Optional JavaScript -->
+<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+{#    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>#}
+{#    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>#}
+{#    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>#}
+</body>
+
+<!-- Footer -->
+<footer>
+    <div class="footer">© 2020 Copyright: Richard Meyer</div>
+</footer>
+
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
